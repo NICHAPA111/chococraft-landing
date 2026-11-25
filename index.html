@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChocoCraft — Artisanal Chocolate Bars</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; background: #faf7f5; color: #2b1810; }
+    .products { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .card img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; }
+    form, .label-box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px; }
+    label { display: block; margin-top: 10px; font-weight: 600; }
+    input, select, textarea, button { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #d6c7c0; box-sizing: border-box; }
+    button { background: #4a2511; color: #fff; border: none; font-weight: bold; cursor: pointer; margin-top: 16px; }
+    button:hover { background: #633319; }
+    .shipping-label { border: 2px dashed #2b1810; padding: 16px; border-radius: 10px; background: #fffdf9; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <h1 class="no-print">🍫 ChocoCraft Bars</h1>
+  <p class="no-print">ช็อกโกแลตแท่งคราฟต์ สั่งง่าย ส่งตรงถึงบ้าน</p>
+
+  <!-- สินค้าอย่างน้อย 2 SKUs (เปลี่ยน src เป็น Raw URL จาก GitHub ของคุณ) -->
+  <div class="products no-print">
+    <div class="card">
+      <img src="https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/images/sku1.jpg" alt="Dark 70%">
+      <h3>SKU-001: Dark Chocolate 70%</h3>
+      <p>ราคา: <strong>120 บาท</strong> / แท่ง</p>
+    </div>
+    <div class="card">
+      <img src="https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/images/sku2.jpg" alt="Matcha White">
+      <h3>SKU-002: Uji Matcha White Chocolate</h3>
+      <p>ราคา: <strong>135 บาท</strong> / แท่ง</p>
+    </div>
+  </div>
+
+  <!-- ฟอร์มสั่งซื้อส่งเข้า Google Sheets -->
+  <form id="orderForm" class="no-print">
+    <h2>สั่งซื้อสินค้า</h2>
+    <label>เลือกสินค้า (SKU)
+      <select id="sku" required>
+        <option value="SKU-001 | Dark Chocolate 70% (120฿)">SKU-001 — Dark Chocolate 70% (120 บาท)</option>
+        <option value="SKU-002 | Uji Matcha White Chocolate (135฿)">SKU-002 — Uji Matcha White Chocolate (135 บาท)</option>
+      </select>
+    </label>
+    <label>จำนวน (แท่ง)
+      <input type="number" id="qty" min="1" value="1" required />
+    </label>
+    <label>ชื่อ-นามสกุล ผู้รับ
+      <input type="text" id="customerName" required />
+    </label>
+    <label>เบอร์โทรศัพท์
+      <input type="tel" id="phone" required />
+    </label>
+    <label>ที่อยู่สำหรับจัดส่ง
+      <textarea id="address" rows="3" required></textarea>
+    </label>
+    <button type="submit">ยืนยันคำสั่งซื้อและสร้างใบจ่าหน้าพัสดุ</button>
+    <p id="statusMsg"></p>
+  </form>
+
+  <!-- ส่วนหยิบของ แพ็คของ และจ่าหน้าพัสดุ -->
+  <div class="label-box">
+    <div class="no-print">
+      <h2>📦 รายการหยิบสินค้า & จ่าหน้าพัสดุ (Fulfillment)</h2>
+      <p>สร้างอัตโนมัติจากออเดอร์ล่าสุด หรือกรอกข้อมูลจาก Google Sheets เพื่อพิมพ์แปะกล่อง</p>
+    </div>
+    <div id="shippingLabel" class="shipping-label">
+      <strong>ผู้ส่ง (SENDER):</strong> ChocoCraft Store (02-000-0000) — กรุงเทพมหานคร<br />
+      <hr />
+      <strong>ผู้รับ (TO):</strong> <span id="outName">-</span> (<span id="outPhone">-</span>)<br />
+      <strong>ที่อยู่:</strong> <span id="outAddress">-</span><br />
+      <hr />
+      <strong>รายการหยิบ & แพ็ค (PICK & PACK):</strong> <span id="outItems">-</span>
+    </div>
+    <button type="button" class="no-print" onclick="window.print()">พิมพ์ใบจ่าหน้าพัสดุ</button>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+    document.getElementById("orderForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const statusMsg = document.getElementById("statusMsg");
+      const payload = {
+        orderId: "ORD-" + Date.now().toString().slice(-6),
+        sku: document.getElementById("sku").value,
+        qty: document.getElementById("qty").value,
+        customerName: document.getElementById("customerName").value,
+        phone: document.getElementById("phone").value,
+        address: document.getElementById("address").value
+      };
+
+      // อัปเดตใบจ่าหน้าพัสดุทันที
+      document.getElementById("outName").textContent = payload.customerName;
+      document.getElementById("outPhone").textContent = payload.phone;
+      document.getElementById("outAddress").textContent = payload.address;
+      document.getElementById("outItems").textContent = `${payload.sku} × ${payload.qty} ชิ้น [รหัส: ${payload.orderId}]`;
+
+      statusMsg.textContent = "กำลังบันทึกข้อมูลลง Google Sheets...";
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        statusMsg.textContent = "✅ บันทึกคำสั่งซื้อเรียบร้อยแล้ว (" + payload.orderId + ")";
+      } catch (err) {
+        statusMsg.textContent = "⚠️ ส่งข้อมูลไม่สำเร็จ ตรวจสอบ URL ของ Google Apps Script อีกครั้ง";
+      }
+    });
+  </script>
+</body>
+</html>
